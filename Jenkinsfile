@@ -89,7 +89,7 @@ pipeline {
                             dir("vertical-pod-autoscaler") {
 
                                 // Template
-                                sh "./hack/vpa-process-yamls.sh print
+                                sh "./hack/vpa-process-yamls.sh print"
 
                             }
 
