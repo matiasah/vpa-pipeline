@@ -98,7 +98,7 @@ pipeline {
 
                     script {
                         
-                        sh "ls -l -a'
+                        sh "ls -l -a"
                         
                         dir("vertical-pod-autoscaler") {
                             
