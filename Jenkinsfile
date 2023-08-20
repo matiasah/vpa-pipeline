@@ -22,7 +22,7 @@ subjects:
 pipeline {
 
     parameters {
-        choice(description: "Action", name: "Action", choices: ["Apply", "Destroy"])
+        choice(description: "Action", name: "Action", choices: ["Plan", "Apply", "Destroy"])
     }
 
     agent {
@@ -90,7 +90,42 @@ pipeline {
 
         }
 
+        stage ("Vertical Pod Autoscaler: Plan") {
+
+            steps {
+
+                container ("kubectl") {
+
+                    script {
+
+                        dir("autoscaler") {
+                            
+                            dir("vertical-pod-autoscaler") {
+
+                                // Template
+                                sh "./hack/vpa-process-yamls.sh print
+
+                            }
+
+                        }
+        
+                    }
+
+                }
+
+            }
+
+        }
+
         stage ("Vertical Pod Autoscaler: Apply") {
+
+            when {
+                
+                expression {
+                    return !env.ACTION.equals("Plan")
+                }
+                
+            }
 
             steps {
 
