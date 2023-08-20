@@ -97,25 +97,27 @@ pipeline {
                 container ("kubectl") {
 
                     script {
-                        
-                        sh "ls -l -a"
-                        
-                        dir("vertical-pod-autoscaler") {
+
+                        dir("autoscaler") {
                             
-                            // Apply
-                            if (env.ACTION.equals("Apply")) {
+                            dir("vertical-pod-autoscaler") {
                                 
-                                // Run Install Script
-                                sh "./hack/vpa-up.sh"
+                                // Apply
+                                if (env.ACTION.equals("Apply")) {
+                                    
+                                    // Run Install Script
+                                    sh "./hack/vpa-up.sh"
+                                    
+                                // Destroy
+                                } else if (env.ACTION.equals("Destroy")) {
+        
+                                    // Run Uninstall Script
+                                    sh "./hack/vpa-down.sh"
+        
+                                }
                                 
-                            // Destroy
-                            } else if (env.ACTION.equals("Destroy")) {
-    
-                                // Run Uninstall Script
-                                sh "./hack/vpa-down.sh"
-    
                             }
-                            
+
                         }
 
                     }
