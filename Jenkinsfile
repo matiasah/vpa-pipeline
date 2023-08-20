@@ -97,15 +97,17 @@ pipeline {
                 container ("kubectl") {
 
                     script {
-
+                        
+                        sh "ls -l -a'
+                        
                         dir("vertical-pod-autoscaler") {
-
+                            
                             // Apply
                             if (env.ACTION.equals("Apply")) {
-
+                                
                                 // Run Install Script
                                 sh "./hack/vpa-up.sh"
-    
+                                
                             // Destroy
                             } else if (env.ACTION.equals("Destroy")) {
     
