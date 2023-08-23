@@ -23,6 +23,8 @@ pipeline {
 
     parameters {
         choice(description: "Action", name: "Action", choices: ["Plan", "Apply", "Destroy"])
+        booleanParam(description: "Debug", name: "DEBUG", defaultValue: env.DEBUG ? env.DEBUG : "false")
+        booleanParam(description: "Restart", name: "RESTART", defaultValue: env.RESTART ? env.RESTART : "false")
     }
 
     agent {
