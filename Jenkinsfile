@@ -38,11 +38,18 @@ pipeline {
                   containers:
                   - command:
                     - "cat"
-                    image: "alpine/git:latest"
+                    image: "alpine/helm:latest"
                     imagePullPolicy: "IfNotPresent"
-                    name: "git"
+                    name: "helm"
                     resources: {}
                     tty: true
+                    volumeMounts:
+                    - mountPath: "/.config"
+                      name: "config-volume"
+                      readOnly: false
+                    - mountPath: "/.cache/helm/"
+                      name: "cache-volume"
+                      readOnly: false
                   - command:
                     - "cat"
                     image: "bitnami/kubectl:latest"
@@ -51,23 +58,58 @@ pipeline {
                     resources: {}
                     tty: true
                   serviceAccountName: jenkins-slave
+                  volumes:
+                  - emptyDir:
+                      medium: ""
+                    name: "config-volume"
+                  - emptyDir:
+                      medium: ""
+                    name: "cache-volume"
             """
         }
     }
 
     stages {
 
-        stage ("Git Repo") {
+        stage ("Helm Repo") {
 
             steps {
 
-                container ("git") {
+                container ("helm") {
 
                     script {
     
                         // Install repo
-                        sh "git clone https://github.com/kubernetes/autoscaler"
+                        sh "helm repo add vertical-pod-autoscaler https://kubernetes.github.io/autoscaler"
+                        sh "helm repo update"
     
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage ("Namespace: Apply") {
+
+            when {
+
+                expression {
+                    return env.ACTION.equals("Apply")
+                }
+
+            }
+
+            steps {
+
+                container ("kubectl") {
+
+                    script {
+
+                        // Apply
+                        sh "kubectl apply -f namespace.yaml"
+
                     }
 
                 }
@@ -80,21 +122,51 @@ pipeline {
 
             steps {
 
-                container ("kubectl") {
+                container ("helm") {
 
                     script {
 
-                        dir("autoscaler") {
-                            
-                            dir("vertical-pod-autoscaler") {
+                        // Cluster agent options
+                        VPA_OPTIONS = " "
 
-                                // Template
-                                sh "./hack/vpa-process-yamls.sh print"
+                        // If DEBUG is enabled
+                        if (env.DEBUG.equals("true")) {
 
-                            }
+                            // Enable debug
+                            VPA_OPTIONS += "--debug "
 
                         }
-        
+
+                        // Template
+                        sh "helm template vpa vertical-pod-autoscaler/vertical-pod-autoscaler -f vpa-values.yaml ${VPA_OPTIONS.trim()} --namespace vpa > vpa-base.yaml"
+
+                    }
+
+                }
+
+                container("kustomize") {
+
+                    script {
+
+                        // Download envsubst
+                        httpRequest url: "https://github.com/a8m/envsubst/releases/download/v1.2.0/envsubst-Linux-x86_64", outputFile: "envsubst"
+
+                        // Add execution permission to envsubst
+                        sh "chmod +x envsubst"
+                        sh "ls -l -a"
+    
+                        sh '''
+                        for file in ./custom-resource/*; do
+                            ./envsubst < "${file}" > out.txt && mv out.txt "${file}";
+                        done
+                        '''
+
+                        // Kustomize
+                        sh "kustomize build > vpa-template.yaml"
+
+                        // Print Yaml
+                        sh "cat vpa-template.yaml"
+
                     }
 
                 }
@@ -119,27 +191,57 @@ pipeline {
 
                     script {
 
-                        dir("autoscaler") {
-                            
-                            dir("vertical-pod-autoscaler") {
+                        // Apply
+                        if (env.ACTION.equals("Apply")) {
+
+                            // Apply
+                            sh "kubectl apply -f vpa-template.yaml"
+
+                        // Destroy
+                        } else if (env.ACTION.equals("Destroy")) {
+
+                            try {
                                 
-                                // Apply
-                                if (env.ACTION.equals("Apply")) {
-                                    
-                                    // Run Install Script
-                                    sh "./hack/vpa-up.sh"
-                                    
                                 // Destroy
-                                } else if (env.ACTION.equals("Destroy")) {
-        
-                                    // Run Uninstall Script
-                                    sh "./hack/vpa-down.sh"
-        
-                                }
-                                
+                                sh "kubectl delete -f vpa-template.yaml"
+
+                            } catch (Exception e) {
+
+                                // Do nothing
+
                             }
 
                         }
+
+                        sh "rm vpa-template.yaml"
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage ("Restart") {
+
+            when {
+                
+                expression {
+                    return !env.ACTION.equals("Plan") && env.RESTART.equals("true")
+                }
+                
+            }
+
+            steps {
+
+                container ("kubectl") {
+
+                    script {
+
+                        sh "kubectl rollout restart deployment -n vpa"
+                        sh "kubectl rollout restart daemonset -n vpa"
+                        sh "kubectl rollout restart statefulset -n vpa"
 
                     }
 
