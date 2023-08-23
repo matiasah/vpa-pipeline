@@ -23,6 +23,7 @@ pipeline {
 
     parameters {
         choice(description: "Action", name: "Action", choices: ["Plan", "Apply", "Destroy"])
+        string(description: "Repository Tag (https://github.com/kubernetes/autoscaler)", name: "REPO_TAG", defaultValue: env.REPO_TAG ? env.REPO_TAG : '')
     }
 
     agent {
@@ -66,7 +67,7 @@ pipeline {
                     script {
     
                         // Install repo
-                        sh "git clone https://github.com/kubernetes/autoscaler"
+                        sh "git clone https://github.com/kubernetes/autoscaler --branch ${REPO_TAG} --single-branch"
     
                     }
 
